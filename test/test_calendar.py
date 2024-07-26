@@ -8,6 +8,9 @@ from pytest import fixture
 from octoprint_print_planning_scheduler.printing_schedule.date_interval import (
     DateInterval,
 )
+from octoprint_print_planning_scheduler.printing_schedule.date_interval_set import (
+    DateIntervalSet,
+)
 from octoprint_print_planning_scheduler.printing_schedule.infinite_calendar import (
     InfiniteCalendar,
     RecurringEvent,
@@ -20,7 +23,7 @@ ICAL_DATETIME_FORMAT = "%Y%m%dT%H%M%S"
 
 @fixture
 def calendar_test_data():
-    recurring = DateInterval(datetime(2024, 7, 1, 9, 0), datetime(2024, 7, 20, 12, 0))
+    recurring = DateInterval(datetime(2024, 7, 1, 10, 0), datetime(2024, 7, 1, 11, 0))
     single = DateInterval(datetime(2024, 7, 1, 15, 0), datetime(2024, 7, 1, 15, 30))
     return (
         "BEGIN:VCALENDAR\r\n"
@@ -87,9 +90,9 @@ def test_recurring_event_daily():
 def test_recurring_event_weekly_with_specific_day():
     start_date = datetime(2024, 7, 1, 10, 0)
     end_date = datetime(2024, 7, 1, 11, 0)
-    recurrence_str = "FREQ=WEEKLY;BYDAY=MO"
     rrule_str = (
-        f"DTSTART:{start_date.strftime('%Y%m%dT%H%M%S')}\nRRULE:{recurrence_str}"
+        f"DTSTART:{start_date.strftime('%Y%m%dT%H%M%S')}\n"
+        f"RRULE:FREQ=WEEKLY;BYDAY=MO"
     )
 
     recurring_event = RecurringEvent(start_date, end_date, rrulestr(rrule_str))
@@ -119,11 +122,11 @@ def test_infinite_calendar_from_file(calendar_test_data):
     assert isinstance(recurring_event, RecurringEvent)
     assert isinstance(single_event, SingleEvent)
 
-    # Validate RecurringEvent intervals
-    interval_set = recurring_event.generate_intervals(
-        DateInterval(datetime(2024, 7, 1, 9, 0), datetime(2024, 7, 4, 12, 0))
+    sample_interval = DateInterval(
+        datetime(2024, 7, 1, 9, 0), datetime(2024, 7, 4, 12, 0)
     )
-    assert interval_set.intervals == [
+    recurring_intervals = recurring_event.generate_intervals(sample_interval)
+    assert recurring_intervals.intervals == [
         DateInterval(datetime(2024, 7, 1, 10, 0), datetime(2024, 7, 1, 11, 0)),
         DateInterval(datetime(2024, 7, 2, 10, 0), datetime(2024, 7, 2, 11, 0)),
         DateInterval(datetime(2024, 7, 3, 10, 0), datetime(2024, 7, 3, 11, 0)),
@@ -131,9 +134,16 @@ def test_infinite_calendar_from_file(calendar_test_data):
     ]
 
     # Validate SingleEvent intervals
-    interval_set = single_event.generate_intervals(
-        DateInterval(datetime(2024, 7, 1, 9, 0), datetime(2024, 7, 1, 18, 0))
-    )
-    assert interval_set.intervals == [
+    single_intervals = single_event.generate_intervals(sample_interval)
+    assert single_intervals.intervals == [
         DateInterval(datetime(2024, 7, 1, 15, 0), datetime(2024, 7, 1, 15, 30))
+    ]
+
+    calendar_intervals = calendar.generate_intervals_for_period(sample_interval)
+    assert calendar_intervals.intervals == [
+        DateInterval(datetime(2024, 7, 1, 10, 0), datetime(2024, 7, 1, 11, 0)),
+        DateInterval(datetime(2024, 7, 1, 15, 0), datetime(2024, 7, 1, 15, 30)),
+        DateInterval(datetime(2024, 7, 2, 10, 0), datetime(2024, 7, 2, 11, 0)),
+        DateInterval(datetime(2024, 7, 3, 10, 0), datetime(2024, 7, 3, 11, 0)),
+        DateInterval(datetime(2024, 7, 4, 10, 0), datetime(2024, 7, 4, 11, 0)),
     ]

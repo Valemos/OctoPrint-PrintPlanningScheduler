@@ -20,7 +20,10 @@ class PrintPlanningSchedulerPlugin(
         # Define your plugin's asset files to automatically include in the
         # core UI here.
         return {
-            "js": ["js/print_planning_scheduler.js"],
+            "js": [
+                "js/print_planning_scheduler.js",
+                "js/fullcalendar/dist/index.global.js",
+            ],
             "css": ["css/print_planning_scheduler.css"],
             "less": ["less/print_planning_scheduler.less"],
         }

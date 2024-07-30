@@ -1,19 +1,45 @@
 <div id='scheduling_calendar'></div>
 
 <div>
+    <h3>Upload Schedule</h3>
+    <form id="schedule_upload_form" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".ics" required/>
+        <button type="submit">Upload</button>
+    </form>
+    <div id="message"></div>
+</div>
+
+<div>
+    <h3>Add calendar interval</h3>
     <form id="scheduling_calendar_event_form">
         <label for="title">Title:</label>
         <input type="text" name="title" required><br><br>
-        
-        <label for="url">URL:</label>
-        <input type="url" name="url"><br><br>
-        
+
         <label for="start">Start:</label>
         <input type="datetime-local" name="start" required><br><br>
         
         <label for="end">End:</label>
         <input type="datetime-local" name="end" required><br><br>
+
+        <label for="isPrintingEnabled">Is enabled printing:</label>
+        <input type="checkbox" name="isPrintingEnabled" checked><br><br>
         
-        <button type="button" id="scheduling_calendar_event_submit">Add Event</button>
+        <button type="submit">Add interval</button>
+    </form>
+</div>
+
+<div>
+    <h3>Print job</h3>
+    <form id="print_job_form">
+        <label for="name">Name:</label>
+        <input type="text" name="name" required><br><br>
+
+        <label for="duration">Job duration:</label>
+        <input type="time" name="duration" required><br><br>
+
+        <label for="description">Description:</label>
+        <textarea name="description"></textarea><br><br>
+
+        <button type="submit">Add print job</button>
     </form>
 </div>

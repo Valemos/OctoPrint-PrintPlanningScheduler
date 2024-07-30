@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from bisect import bisect_left, bisect_right
@@ -30,6 +31,12 @@ class DateIntervalSet:
         merged_intervals.append(current)
         self.intervals = merged_intervals
 
+    def subtract(self, interval_set: "DateIntervalSet"):
+        result = copy.deepcopy(self)
+        for interval in interval_set.intervals:
+            result.remove_interval(interval)
+        return result
+
     def extend(self, interval_set: "DateIntervalSet"):
         for interval in interval_set.intervals:
             self.add(interval)
@@ -59,15 +66,15 @@ class DateIntervalSet:
                     )
         self.intervals = new_intervals
 
-    def get_inverted_intervals(self, start: datetime, end: datetime):
-        result = []
-        previous_end = start
+    def get_inverted_intervals(self, period: DateInterval):
+        result = DateIntervalSet()
+        previous_end = period.start
         for interval in self.intervals:
             if interval.start > previous_end:
-                result.append(DateInterval(previous_end, interval.start))
+                result.add(DateInterval(previous_end, interval.start))
             previous_end = max(previous_end, interval.end)
-        if previous_end < end:
-            result.append(DateInterval(previous_end, end))
+        if previous_end < period.end:
+            result.add(DateInterval(previous_end, period.end))
         return result
 
     def find_closest_future_interval(self, dt: datetime):

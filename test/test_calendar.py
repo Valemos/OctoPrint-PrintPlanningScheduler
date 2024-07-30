@@ -111,7 +111,7 @@ def test_recurring_event_weekly_with_specific_day():
 
 def test_infinite_calendar_from_file(calendar_test_data):
     with patch("builtins.open", mock_open(read_data=calendar_test_data)) as mock_file:
-        calendar = InfiniteCalendar.from_file(Path("mock.ics"))
+        calendar = InfiniteCalendar.from_ical(Path("mock.ics"))
         mock_file().read.assert_called_once()
 
     assert len(calendar.events) == 2

@@ -1,56 +1,76 @@
 from __future__ import annotations
 
-import datetime
-from icalendar import Calendar
+from typing import List, Optional
+from pathlib import Path
 from datetime import timedelta, datetime
+
+from octoprint_print_planning_scheduler.printing_schedule.date_interval import (
+    DateInterval,
+)
+from octoprint_print_planning_scheduler.printing_schedule.date_interval_set import (
+    DateIntervalSet,
+)
+from octoprint_print_planning_scheduler.printing_schedule.infinite_calendar import (
+    InfiniteCalendar,
+)
+from octoprint_print_planning_scheduler.printing_schedule.print_job import PrintJob
 
 
 class PrintSchedule:
-    def __init__(self, ical_file):
-        self.ical_file = ical_file
-        self.power_intervals = []
-        self.jobs = []
-        self.load_ical()
+    def __init__(self, calendar: InfiniteCalendar):
+        self._calendar = calendar
+        self._excluded_intervals = DateIntervalSet()
+        self.jobs: List[PrintJob] = []
 
-    def load_ical(self):
-        with open(self.ical_file, "rb") as f:
-            gcal = Calendar.from_ical(f.read())
-            outages = []
-            for component in gcal.walk():
-                if component.name == "VEVENT":
-                    start = component.get("dtstart").dt
-                    end = component.get("dtend").dt
-                    outages.append((start, end))
+    @property
+    def calendar(self):
+        return self._calendar
 
-            outages.sort()
-            self.calculate_power_intervals(outages)
+    @calendar.setter
+    def calendar(self, value):
+        self._calendar = value
 
-    def calculate_power_intervals(self, outages):
-        current_time = datetime.now()
-        for start, end in outages:
-            if start > current_time:
-                self.power_intervals.append((current_time, start))
-            current_time = end
-        if current_time < datetime.now() + timedelta(
-            days=1
-        ):  # Assuming 24-hour scheduling window
-            self.power_intervals.append(
-                (current_time, datetime.now() + timedelta(days=1))
-            )
+    @classmethod
+    def from_ical(cls, ical_file: Path):
+        calendar = InfiniteCalendar.from_ical(ical_file)
+        return cls(calendar)
 
-    def add_urgent_outage(self, start, end):
-        self.power_intervals = []
-        self.calculate_power_intervals([(start, end)])
+    def reset(self):
+        self._excluded_intervals = DateIntervalSet()
 
-    def add_job(self, job_duration):
-        self.jobs.append(job_duration)
+    def add_job(self, job: PrintJob):
+        self.jobs.append(job)
 
-    def schedule_jobs(self):
+    def add_exclusion_interval(self, interval: DateInterval):
+        self._excluded_intervals.add(interval)
+
+    def get_available_intervals(
+        self, start_time: datetime, max_duration: timedelta
+    ) -> DateIntervalSet:
+        target_period = DateInterval(start_time, start_time + max_duration)
+        disabled = self._calendar.generate_intervals_for_period(target_period)
+        disabled = disabled.subtract(self._excluded_intervals)
+        return disabled.get_inverted_intervals(target_period)
+
+    def get_scheduled_job_options(self, start_time: datetime) -> List[PrintJob]:
+        if not self.jobs:
+            return []
+
+        jobs = list(self.jobs)
+        jobs.sort(key=lambda job: job.duration, reverse=True)
+        max_job_duration = max(jobs, key=lambda job: job.duration).duration
+        available_intervals = self.get_available_intervals(start_time, max_job_duration)
+
+        if len(available_intervals.intervals) == 0:
+            return []
+
+        current_interval = available_intervals.intervals[0]
+        if current_interval.start != start_time:
+            return []
+
         scheduled_jobs = []
-        for job_duration in self.jobs:
-            for i, (start, end) in enumerate(self.power_intervals):
-                if end - start >= job_duration:
-                    scheduled_jobs.append((start, start + job_duration))
-                    self.power_intervals[i] = (start + job_duration, end)
-                    break
+        for job in jobs:
+            if current_interval.start + job.duration <= current_interval.end:
+                scheduled_jobs.append(job)
+
         return scheduled_jobs

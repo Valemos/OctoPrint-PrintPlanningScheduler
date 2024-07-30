@@ -117,10 +117,10 @@ def test_get_negated_intervals():
     interval_set.add(DateInterval(datetime(2023, 1, 1), datetime(2023, 1, 10)))
     interval_set.add(DateInterval(datetime(2023, 1, 15), datetime(2023, 1, 20)))
     negated_intervals = interval_set.get_inverted_intervals(
-        datetime(2023, 1, 1), datetime(2023, 1, 20)
+        DateInterval(datetime(2023, 1, 1), datetime(2023, 1, 20))
     )
-    assert len(negated_intervals) == 1
-    assert negated_intervals[0] == DateInterval(
+    assert len(negated_intervals.intervals) == 1
+    assert negated_intervals.intervals[0] == DateInterval(
         datetime(2023, 1, 10), datetime(2023, 1, 15)
     )
 

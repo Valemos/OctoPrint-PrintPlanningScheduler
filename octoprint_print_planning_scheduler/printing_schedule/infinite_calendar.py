@@ -49,30 +49,32 @@ class InfiniteCalendar:
         self.events = events if events else []
 
     @classmethod
-    def from_file(cls, file_path: Path) -> "InfiniteCalendar":
+    def from_ical(cls, file_path: Path) -> "InfiniteCalendar":
         with open(file_path, "r") as f:
-            gcal = Calendar.from_ical(f.read())
-            events = []
-            for component in gcal.walk():
-                if component.name == "VEVENT":
-                    start = component.get("dtstart")
-                    end = component.get("dtend")
-                    recurrence = component.get("rrule", None)
-                    if recurrence is not None:
-                        start_str = start.to_ical().decode("utf-8")
-                        recurrence_str = recurrence.to_ical().decode("utf-8")
-                        events.append(
-                            RecurringEvent(
-                                start.dt,
-                                end.dt,
-                                rrulestr(
-                                    f"DTSTART:{start_str}\nRRULE:{recurrence_str}"
-                                ),
-                            )
+            return cls.from_ical_str(f.read())
+
+    @classmethod
+    def from_ical_str(cls, ical_str):
+        gcal = Calendar.from_ical(ical_str)
+        events = []
+        for component in gcal.walk():
+            if component.name == "VEVENT":
+                start = component.get("dtstart")
+                end = component.get("dtend")
+                recurrence = component.get("rrule", None)
+                if recurrence is not None:
+                    start_str = start.to_ical().decode("utf-8")
+                    recurrence_str = recurrence.to_ical().decode("utf-8")
+                    events.append(
+                        RecurringEvent(
+                            start.dt,
+                            end.dt,
+                            rrulestr(f"DTSTART:{start_str}\nRRULE:{recurrence_str}"),
                         )
-                    else:
-                        events.append(SingleEvent(start.dt, end.dt))
-            return InfiniteCalendar(sorted(events, key=lambda e: e.start))
+                    )
+                else:
+                    events.append(SingleEvent(start.dt, end.dt))
+        return InfiniteCalendar(sorted(events, key=lambda e: e.start))
 
     def generate_intervals_for_period(self, interval: DateInterval) -> DateIntervalSet:
         total_intervals_set = DateIntervalSet()

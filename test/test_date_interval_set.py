@@ -39,9 +39,7 @@ def test_add_interval_contiguous():
 def test_remove_interval_completely_within():
     interval_set = DateIntervalSet()
     interval_set.add(DateInterval(datetime(2023, 1, 1), datetime(2023, 1, 20)))
-    interval_set.remove_interval(
-        DateInterval(datetime(2023, 1, 5), datetime(2023, 1, 15))
-    )
+    interval_set.remove(DateInterval(datetime(2023, 1, 5), datetime(2023, 1, 15)))
     assert len(interval_set.intervals) == 2
     assert interval_set.intervals[0] == DateInterval(
         datetime(2023, 1, 1), datetime(2023, 1, 5)
@@ -54,9 +52,7 @@ def test_remove_interval_completely_within():
 def test_remove_interval_partial_overlap_start():
     interval_set = DateIntervalSet()
     interval_set.add(DateInterval(datetime(2023, 1, 1), datetime(2023, 1, 10)))
-    interval_set.remove_interval(
-        DateInterval(datetime(2022, 12, 25), datetime(2023, 1, 5))
-    )
+    interval_set.remove(DateInterval(datetime(2022, 12, 25), datetime(2023, 1, 5)))
     assert len(interval_set.intervals) == 1
     assert interval_set.intervals[0] == DateInterval(
         datetime(2023, 1, 5), datetime(2023, 1, 10)
@@ -66,9 +62,7 @@ def test_remove_interval_partial_overlap_start():
 def test_remove_interval_partial_overlap_end():
     interval_set = DateIntervalSet()
     interval_set.add(DateInterval(datetime(2023, 1, 1), datetime(2023, 1, 10)))
-    interval_set.remove_interval(
-        DateInterval(datetime(2023, 1, 5), datetime(2023, 1, 15))
-    )
+    interval_set.remove(DateInterval(datetime(2023, 1, 5), datetime(2023, 1, 15)))
     assert len(interval_set.intervals) == 1
     assert interval_set.intervals[0] == DateInterval(
         datetime(2023, 1, 1), datetime(2023, 1, 5)
@@ -88,7 +82,7 @@ def test_remove_big_interval_with_partial_and_complete_overlaps():
     )  # Interval 3
 
     big_interval = DateInterval(datetime(2023, 1, 5), datetime(2023, 1, 30))
-    interval_set.remove_interval(big_interval)
+    interval_set.remove(big_interval)
 
     remaining_intervals = interval_set.intervals
     assert len(remaining_intervals) == 2
@@ -103,9 +97,7 @@ def test_remove_big_interval_with_partial_and_complete_overlaps():
 def test_remove_interval_no_overlap():
     interval_set = DateIntervalSet()
     interval_set.add(DateInterval(datetime(2023, 1, 1), datetime(2023, 1, 10)))
-    interval_set.remove_interval(
-        DateInterval(datetime(2023, 1, 11), datetime(2023, 1, 20))
-    )
+    interval_set.remove(DateInterval(datetime(2023, 1, 11), datetime(2023, 1, 20)))
     assert len(interval_set.intervals) == 1
     assert interval_set.intervals[0] == DateInterval(
         datetime(2023, 1, 1), datetime(2023, 1, 10)
@@ -132,4 +124,41 @@ def test_find_closest_future_interval():
     closest_interval = interval_set.find_closest_future_interval(datetime(2023, 1, 12))
     assert closest_interval == DateInterval(
         datetime(2023, 1, 15), datetime(2023, 1, 20)
+    )
+
+
+def test_get_intervals_within():
+    interval_set = DateIntervalSet(
+        [
+            DateInterval(datetime(2024, 7, 1), datetime(2024, 7, 10)),
+            DateInterval(datetime(2024, 7, 12), datetime(2024, 7, 15)),
+            DateInterval(datetime(2024, 7, 20), datetime(2024, 7, 25)),
+        ]
+    )
+
+    given_interval = DateInterval(datetime(2024, 7, 5), datetime(2024, 7, 22))
+    result = interval_set.get_intervals_within(given_interval)
+
+    assert result == DateIntervalSet(
+        [
+            DateInterval(datetime(2024, 7, 5), datetime(2024, 7, 10)),
+            DateInterval(datetime(2024, 7, 12), datetime(2024, 7, 15)),
+            DateInterval(datetime(2024, 7, 20), datetime(2024, 7, 22)),
+        ]
+    )
+
+    given_interval = DateInterval(datetime(2024, 7, 1), datetime(2024, 7, 30))
+    result = interval_set.get_intervals_within(given_interval)
+    assert result == interval_set
+
+    given_interval = DateInterval(datetime(2024, 7, 30), datetime(2024, 8, 1))
+    result = interval_set.get_intervals_within(given_interval)
+    assert result == DateIntervalSet()
+
+    given_interval = DateInterval(datetime(2024, 7, 13), datetime(2024, 7, 14))
+    result = interval_set.get_intervals_within(given_interval)
+    assert result == DateIntervalSet(
+        [
+            DateInterval(datetime(2024, 7, 13), datetime(2024, 7, 14)),
+        ]
     )

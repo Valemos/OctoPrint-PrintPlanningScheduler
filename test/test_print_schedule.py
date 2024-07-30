@@ -23,7 +23,9 @@ def infinite_calendar():
 
 @pytest.fixture
 def print_schedule(infinite_calendar):
-    return PrintSchedule(infinite_calendar)
+    schedule = PrintSchedule()
+    schedule.calendar = infinite_calendar
+    return schedule
 
 
 def test_add_job(print_schedule: PrintSchedule):
@@ -35,16 +37,18 @@ def test_add_job(print_schedule: PrintSchedule):
 def test_add_exclusion_interval(print_schedule: PrintSchedule):
     interval = DateInterval(datetime(2024, 7, 1, 10, 0), datetime(2024, 7, 1, 12, 0))
     print_schedule.add_exclusion_interval(interval)
-    assert interval in print_schedule._excluded_intervals.intervals
+    assert interval in print_schedule.excluded_intervals.intervals
 
 
 def test_reset(print_schedule: PrintSchedule):
-    print_schedule.calendar = InfiniteCalendar([SingleEvent])
+    print_schedule.calendar = InfiniteCalendar(
+        [SingleEvent(datetime(2024, 7, 1, 11, 0), datetime(2024, 7, 1, 11, 30))]
+    )
 
     interval = DateInterval(datetime(2024, 7, 1, 10, 0), datetime(2024, 7, 1, 12, 0))
     print_schedule.add_exclusion_interval(interval)
     print_schedule.reset()
-    assert not print_schedule._excluded_intervals.intervals
+    assert not print_schedule.excluded_intervals.intervals
 
 
 def test_schedule_jobs_before_interval(print_schedule: PrintSchedule):
@@ -53,7 +57,7 @@ def test_schedule_jobs_before_interval(print_schedule: PrintSchedule):
     print_schedule.add_job(job1)
     print_schedule.add_job(job2)
 
-    print_schedule._calendar = InfiniteCalendar(
+    print_schedule.calendar = InfiniteCalendar(
         [SingleEvent(datetime(2024, 7, 1, 9, 0), datetime(2024, 7, 1, 12, 0))]
     )
 
@@ -71,7 +75,7 @@ def test_schedule_jobs_interval_end(print_schedule: PrintSchedule):
     print_schedule.add_job(job1)
     print_schedule.add_job(job2)
 
-    print_schedule._calendar = InfiniteCalendar(
+    print_schedule.calendar = InfiniteCalendar(
         [SingleEvent(datetime(2024, 7, 1, 9, 0), datetime(2024, 7, 1, 12, 0))]
     )
 
@@ -89,7 +93,7 @@ def test_schedule_jobs_with_lacking_time(print_schedule: PrintSchedule):
     print_schedule.add_job(job1)
     print_schedule.add_job(job2)
 
-    print_schedule._calendar = InfiniteCalendar(
+    print_schedule.calendar = InfiniteCalendar(
         [SingleEvent(datetime(2024, 7, 1, 9, 0), datetime(2024, 7, 1, 12, 0))]
     )
 

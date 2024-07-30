@@ -13,13 +13,18 @@ class DateIntervalSet:
     def __post_init__(self):
         initial_intervals = self.intervals
         self.intervals = []
-        for interval in initial_intervals:
+        for interval in sorted(initial_intervals, key=lambda interval: interval.start):
             self.add(interval)
 
+    def __iter__(self):
+        return iter(self.intervals)
+
     def add(self, new_interval: DateInterval):
-        # Insert and merge intervals
-        self.intervals.append(new_interval)
-        self.intervals.sort(key=lambda interval: interval.start)
+        index = bisect_left(
+            [interval.start for interval in self.intervals], new_interval.start
+        )
+        self.intervals.insert(index, new_interval)
+
         merged_intervals = []
         current = self.intervals[0]
         for interval in self.intervals[1:]:
@@ -31,17 +36,7 @@ class DateIntervalSet:
         merged_intervals.append(current)
         self.intervals = merged_intervals
 
-    def subtract(self, interval_set: "DateIntervalSet"):
-        result = copy.deepcopy(self)
-        for interval in interval_set.intervals:
-            result.remove_interval(interval)
-        return result
-
-    def extend(self, interval_set: "DateIntervalSet"):
-        for interval in interval_set.intervals:
-            self.add(interval)
-
-    def remove_interval(self, remove_interval: DateInterval):
+    def remove(self, remove_interval: DateInterval):
         new_intervals = []
         for interval in self.intervals:
             if (
@@ -65,6 +60,28 @@ class DateIntervalSet:
                         DateInterval(remove_interval.end, interval.end)
                     )
         self.intervals = new_intervals
+
+    def get_intervals_within(self, given_interval: DateInterval) -> "DateIntervalSet":
+        result = DateIntervalSet()
+        for interval in self.intervals:
+            if interval.end <= given_interval.start:
+                continue
+            if interval.start >= given_interval.end:
+                break
+            start = max(interval.start, given_interval.start)
+            end = min(interval.end, given_interval.end)
+            result.add(DateInterval(start, end))
+        return result
+
+    def subtract(self, interval_set: "DateIntervalSet"):
+        result = copy.deepcopy(self)
+        for interval in interval_set.intervals:
+            result.remove(interval)
+        return result
+
+    def extend(self, interval_set: "DateIntervalSet"):
+        for interval in interval_set.intervals:
+            self.add(interval)
 
     def get_inverted_intervals(self, period: DateInterval):
         result = DateIntervalSet()

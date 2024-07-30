@@ -20,6 +20,7 @@ class RecurringEvent:
     end: datetime
     recurrence: rrule | rruleset
     stop_date: datetime | None = None
+    name: str | None = None
 
     def generate_intervals(self, period: DateInterval) -> DateIntervalSet:
         intervals = DateIntervalSet()
@@ -35,6 +36,7 @@ class RecurringEvent:
 class SingleEvent:
     start: datetime
     end: datetime
+    name: str | None = None
 
     def generate_intervals(self, period: DateInterval) -> DateIntervalSet:
         if self.start < period.end and self.end > period.start:
@@ -76,9 +78,33 @@ class InfiniteCalendar:
                     events.append(SingleEvent(start.dt, end.dt))
         return InfiniteCalendar(sorted(events, key=lambda e: e.start))
 
+    def add_event(
+        self,
+        start: datetime,
+        end: datetime,
+        name: str | None = None,
+        recurrence: rrule | rruleset | None = None,
+        stop_date: datetime | None = None,
+    ):
+        if recurrence is None:
+            self.events.append(SingleEvent(start, end, name))
+        else:
+            self.events.append(RecurringEvent(start, end, recurrence, stop_date, name))
+
     def generate_intervals_for_period(self, interval: DateInterval) -> DateIntervalSet:
         total_intervals_set = DateIntervalSet()
         for event in self.events:
             intervals = event.generate_intervals(interval)
             total_intervals_set.extend(intervals)
         return total_intervals_set
+
+    def get_intervals_as_events_for_period(
+        self, interval: DateInterval
+    ) -> list[SingleEvent]:
+        total_events = []
+        for event in self.events:
+            intervals = event.generate_intervals(interval)
+            total_events.extend(
+                map(lambda i: SingleEvent(i.start, i.end, event.name), intervals)
+            )
+        return total_events

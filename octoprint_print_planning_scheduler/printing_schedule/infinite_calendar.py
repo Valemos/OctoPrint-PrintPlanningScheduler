@@ -36,7 +36,7 @@ class RecurringEvent:
 class SingleEvent:
     start: datetime
     end: datetime
-    name: str | None = None
+    name: str = ""
 
     def generate_intervals(self, period: DateInterval) -> DateIntervalSet:
         if self.start < period.end and self.end > period.start:

@@ -35,20 +35,22 @@ class PrintPlanningSchedulerPlugin(
     def on_settings_initialized(self):
         self._load_calendar()
 
+    @property
+    def calendar_cache_path(self):
+        return Path(self.get_plugin_data_folder()) / "schedule.ics"
+
     def _load_calendar(self):
-        CALENDAR_CACHE_PATH = Path(self.get_plugin_data_folder()) / "schedule.ics"
-        if CALENDAR_CACHE_PATH.exists():
-            return InfiniteCalendar.from_ical(CALENDAR_CACHE_PATH)
+        if self.calendar_cache_path.exists():
+            return InfiniteCalendar.from_ical(self.calendar_cache_path)
         else:
             return InfiniteCalendar([])
 
     def set_calendar_from_file(self, path: Path):
-        CALENDAR_CACHE_PATH = Path(self.get_plugin_data_folder()) / "schedule.ics"
         if path.exists():
-            os.remove(CALENDAR_CACHE_PATH)
-            os.rename(path, CALENDAR_CACHE_PATH)
+            os.remove(self.calendar_cache_path)
+            os.rename(path, self.calendar_cache_path)
             self._print_schedule.calendar = InfiniteCalendar.from_ical(
-                CALENDAR_CACHE_PATH
+                self.calendar_cache_path
             )
 
     ##~~ SettingsPlugin mixin
@@ -94,25 +96,24 @@ class PrintPlanningSchedulerPlugin(
 
     @octoprint.plugin.BlueprintPlugin.route("/upload_schedule", methods=["POST"])
     def upload_schedule(self):
-        if "file" not in flask.request.files:
-            flask.abort(400, description="No file part")
-        file = flask.request.files["file"]
-        if file.filename == "":
-            flask.abort(400, description="No selected file")
-        if file:
-            try:
-                self._print_schedule.calendar = InfiniteCalendar.from_ical_str(
-                    file.read()
-                )
-            except Exception as e:
-                self._logger.exception(e)
-                return (
-                    flask.jsonify(
-                        {"message": f"ICal file cannot be parsed due to error: {e}"}
-                    ),
-                    422,
-                )
-            return flask.jsonify({"message": "Schedule updated successfully"}), 200
+        data = flask.request.get_json()
+        if not data or "content" not in data:
+            return flask.jsonify({"error": "No file content provided"}), 400
+
+        file_content = data["content"]
+        try:
+            self._print_schedule.calendar = InfiniteCalendar.from_ical_str(file_content)
+            with open(self.calendar_cache_path, "w+") as f:
+                f.write(file_content)
+        except Exception as e:
+            self._logger.exception(e)
+            return (
+                flask.jsonify(
+                    {"message": f"ICal file cannot be parsed due to error: {e}"}
+                ),
+                422,
+            )
+        return flask.jsonify({"message": "Schedule updated successfully"}), 200
 
     def _date_or_default(self, date_str: str | None, default=None):
         if date_str is None:

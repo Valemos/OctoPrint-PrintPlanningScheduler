@@ -42,9 +42,14 @@ class print_planning_schedulerViewModel
                 dayMaxEvents: true,
                 eventSources: [
                     {
-                        events: this.onCalendarEventsUpdate.bind(this),
+                        events: this.getCalendarDisabledIntervals.bind(this),
                         color: self.COLOR_DISABLED_PRINTING,
                         textColor: 'black'
+                    },
+                    {
+                        events: this.getCalendarExcludedIntervals.bind(this),
+                        color: self.COLOR_ENABLED_PRINTING,
+                        textColor: 'white'
                     }
                 ],
             });
@@ -57,10 +62,35 @@ class print_planning_schedulerViewModel
         });
     }
 
-    onCalendarEventsUpdate(info, successCallback, failureCallback)
+    getCalendarDisabledIntervals(info, successCallback, failureCallback)
     {
         $.ajax({
             url: this.PLUGIN_BASE_URL + '/disabled_event',
+            type: 'GET',
+            data: {
+                start: info.start.toISOString(),
+                end: info.end.toISOString(),
+            },
+            success: function(response) {
+                successCallback(
+                    response.slice().map((event) => {
+                            return {
+                                title: event.name,
+                                start: new Date(event.start).toISOString(),
+                                end: new Date(event.end).toISOString(),
+                            }
+                        }));
+            },
+            error: function(xhr, status, error) {
+                failureCallback(error);
+            }
+        });
+    }
+
+    getCalendarExcludedIntervals(info, successCallback, failureCallback)
+    {
+        $.ajax({
+            url: this.PLUGIN_BASE_URL + '/excluded_interval',
             type: 'GET',
             data: {
                 start: info.start.toISOString(),
@@ -112,24 +142,28 @@ class print_planning_schedulerViewModel
 
     onScheduleFileUploadSubmit(event) {
         event.preventDefault();
-        const fileEl = $(event.target).get(0);
-        const formData = new FormData(fileEl);
-        console.log(...formData);
-
-        $.ajax({
-            url: this.PLUGIN_BASE_URL + '/upload_schedule',
-            type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function (response) {
-                $('#message').text(response.message).css('color', 'green');
-            },
-            error: function (xhr, status, error) {
-                var errorMessage = xhr.responseJSON ? xhr.responseJSON.message : 'An error occurred';
-                $('#message').text(errorMessage).css('color', 'red');
-            }
-        });
+        const fileEl = $(event.target).find('[name="file"]').get(0);
+        var file = fileEl.files[0];
+        var reader = new FileReader();
+        var self = this;
+        reader.onload = (event) => {
+            const fileContent = event.target.result;
+            $.ajax({
+                url: self.PLUGIN_BASE_URL + '/upload_schedule',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ content: fileContent }),
+                success: (response) => {
+                    $('#message').text(response.message).css('color', 'green');
+                    self.calendar.render();
+                },
+                error: (xhr, status, error) => {
+                    var errorMessage = xhr.responseJSON ? xhr.responseJSON.message : 'An error occurred';
+                    $('#message').text(errorMessage).css('color', 'red');
+                }
+            });
+        };
+        reader.readAsText(file);
     }
 
     onAddCalendarEventSubmit(event)

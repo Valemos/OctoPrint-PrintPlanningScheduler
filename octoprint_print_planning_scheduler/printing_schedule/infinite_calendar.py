@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from dataclasses_json import DataClassJsonMixin, config
 from icalendar import Calendar
 from datetime import datetime, timedelta
 from dateutil.rrule import rrule, rruleset, rrulestr
@@ -15,10 +16,12 @@ from octoprint_print_planning_scheduler.printing_schedule.date_interval_set impo
 
 
 @dataclass
-class RecurringEvent:
+class RecurringEvent(DataClassJsonMixin):
     start: datetime
     end: datetime
-    recurrence: rrule | rruleset
+    recurrence: rrule | rruleset = field(
+        metadata=config(encoder=lambda r: str(r), decoder=lambda r: rrulestr(r))
+    )
     stop_date: datetime | None = None
     name: str | None = None
 
@@ -33,7 +36,7 @@ class RecurringEvent:
 
 
 @dataclass
-class SingleEvent:
+class SingleEvent(DataClassJsonMixin):
     start: datetime
     end: datetime
     name: str = ""
@@ -46,9 +49,9 @@ class SingleEvent:
         return DateIntervalSet()
 
 
-class InfiniteCalendar:
-    def __init__(self, events: list[SingleEvent | RecurringEvent] | None = None):
-        self.events = events if events else []
+@dataclass
+class InfiniteCalendar(DataClassJsonMixin):
+    events: list[SingleEvent | RecurringEvent] = field(default_factory=list)
 
     @classmethod
     def from_ical(cls, file_path: Path) -> "InfiniteCalendar":

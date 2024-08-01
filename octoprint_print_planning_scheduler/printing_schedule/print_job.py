@@ -1,10 +1,17 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
+
+from dataclasses_json import DataClassJsonMixin, config
 
 
 @dataclass
-class PrintJob:
+class PrintJob(DataClassJsonMixin):
     name: str
-    duration: timedelta
+    duration: timedelta = field(
+        metadata=config(
+            decoder=lambda seconds: timedelta(seconds=seconds),
+            encoder=lambda td: td.seconds,
+        )
+    )
     description: str = ""
     _id: int = 0

@@ -9,6 +9,7 @@ class print_planning_schedulerViewModel
     constructor(parameters)
     {
         this.calendar = null;
+        this.jobs = new Array();
         this.COLOR_DISABLED_PRINTING = "#c92662";
         this.COLOR_ENABLED_PRINTING = "#03fc73";
         this.PLUGIN_BASE_URL = "/plugin/print_planning_scheduler";
@@ -18,6 +19,7 @@ class print_planning_schedulerViewModel
     {
         this.initCalendar();
         this.initCalendarControlForms();
+        this.initStartJobs();
     }
 
     initCalendar()
@@ -60,6 +62,37 @@ class print_planning_schedulerViewModel
                 window.dispatchEvent(new Event("resize"));
             }, 100);
         });
+    }
+
+    initStartJobs()
+    {
+        var self = this;
+        this.jobs = new Array();
+        $.ajax({
+            url: this.PLUGIN_BASE_URL + '/print_job',
+            type: 'GET',
+            success: function (response) {
+                response.jobs.forEach((job) => {
+                    self.jobs.push({
+                        id: job._id,
+                        name: job.name,
+                        description: job.description,
+                        duration: job.duration,
+                    })
+                });
+                self.renderJobList();
+            },
+            error: function (xhr, status, error) {
+                console.error('Error fetching disabled events:', error);
+            }
+        });
+    }
+
+    initCalendarControlForms()
+    {
+        $('#print_job_form').on('submit', e => this.onAddPrintJobSubmit(e));
+        $('#schedule_upload_form').on('submit', e => this.onScheduleFileUploadSubmit(e));
+        $('#scheduling_calendar_event_form').on('submit', e => this.onAddCalendarEventSubmit(e));
     }
 
     getCalendarDisabledIntervals(info, successCallback, failureCallback)
@@ -133,13 +166,6 @@ class print_planning_schedulerViewModel
         }
     }
 
-    initCalendarControlForms()
-    {
-        $('#schedule_upload_form').on('submit', e => this.onScheduleFileUploadSubmit(e));
-        $('#scheduling_calendar_event_form').on('submit', e => this.onAddCalendarEventSubmit(e));
-        $('#print_job_form').on('submit', e => this.onAddPrintJobSubmit(e));
-    }
-
     onScheduleFileUploadSubmit(event) {
         event.preventDefault();
         const fileEl = $(event.target).find('[name="file"]').get(0);
@@ -208,21 +234,104 @@ class print_planning_schedulerViewModel
         }
     }
 
-    onAddPrintJobSubmit(event)
+    onAddPrintJobSubmit(submit_event)
     {
         submit_event.preventDefault();
-        const formData = new FormData($(event.target).get(0));
-
-        const printJob = {
-            name: formData.title,
-            duration: formData.duration,
-            description: formData.description
-        };
-
+        const formData = new FormData($(submit_event.target).get(0));
+        var printJob = Object.fromEntries(formData);
         console.log('Print Job:', printJob);
-        // TODO: send job
+        
+        var self = this;
+        $.ajax({
+            url: this.PLUGIN_BASE_URL + '/print_job',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(printJob),
+            success: function (response) {
+                console.log('Interval excluded successfully:', response);
+                printJob.id = response._id;
+                self.jobs.push(printJob);
+                self.renderJobList();
+            },
+            error: function (xhr, status, error) {
+                console.error('Error excluding interval:', error);
+            }
+        });
     }
 
+    renderJobList() {
+        var jobList = $('#suggested_print_job_list');
+        jobList.innerHTML = '';
+        this.jobs.forEach(job => {
+            finish_time = new Date(Date.now() * 1e-3 + job.duration).toLocaleString();
+            const jobItem = $(`
+                <div class="job-item" data-id="${job._id}">
+                    <h3 class="job-name">${job.name}</h3>
+                    <p class="job-duration">Duration: ${job.duration}</p>
+                    <p class="job-finish-time">${finish_time}</p>
+                </div>
+            `);
+            jobItem.click(() => openJobDialog(job._id));
+            jobList.append(jobItem);
+        });
+    }
+
+    openJobDialog(id) {
+        const job = jobs.find(job => job._id === id);
+        if (job) {
+            // Create the dialog content dynamically
+            const dialogContent = `
+                <div id="start_job_dialog" data-id="${job.id}">
+                    <h3>${job.name}</h3>
+                    <p>Duration: ${job.duration}</p>
+                    <p>${job.description}</p>
+                    <button onclick="submitStartJob()">Submit</button>
+                    <button onclick="closeJobDialog()">Cancel</button>
+                </div>
+            `;
+
+            $('#start_job_dialog').remove();
+            $('#start_job_overlay').remove();
+
+            $('body').append(dialogContent);
+            $('body').append('<div id="start_job_overlay" onclick="closeJobDialog()"></div>');
+
+            $('#start_job_overlay').show();
+            $('#start_job_dialog').show();
+        }
+    }
+
+    closeJobDialog() {
+        $('#start_job_overlay').hide();
+        $('#start_job_dialog').hide();
+        $('#start_job_overlay').remove();
+        $('#start_job_dialog').remove();
+    }
+    
+    submitStartJob() {
+        const id = $('#start_job_dialog').data('id');
+        const job = jobs.find(job => job.id === id);
+        if (job) {
+            startPrintJob(job).then(() => {
+                jobs = jobs.filter(job => job.id !== id);
+                renderJobList();
+                closeJobDialog();
+            }).catch(error => {
+                console.error('Failed to start print job:', error);
+            });
+        }
+    }
+
+    updateJobList(newJobs) {
+        jobs = newJobs;
+        renderJobList();
+    }
+
+    startPrintJob(job) {
+        return new Promise((resolve, reject) => {
+            setTimeout(() => resolve(), 1000);  // Simulate async operation
+        });
+    }
     sendDisabledEvent(newEvent) {
         $.ajax({
             url: this.PLUGIN_BASE_URL + '/disabled_event',

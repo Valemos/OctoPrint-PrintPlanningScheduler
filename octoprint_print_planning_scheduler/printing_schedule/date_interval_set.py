@@ -1,13 +1,17 @@
+from __future__ import annotations
+
 import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from bisect import bisect_left, bisect_right
 
+from dataclasses_json import DataClassJsonMixin
+
 from .date_interval import DateInterval
 
 
 @dataclass
-class DateIntervalSet:
+class DateIntervalSet(DataClassJsonMixin):
     intervals: list[DateInterval] = field(default_factory=list)
 
     def __post_init__(self):

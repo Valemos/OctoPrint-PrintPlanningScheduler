@@ -17,6 +17,7 @@ from octoprint_print_planning_scheduler.printing_schedule.infinite_calendar impo
 from octoprint_print_planning_scheduler.printing_schedule.print_job import PrintJob
 from octoprint_print_planning_scheduler.printing_schedule.print_schedule import (
     PrintSchedule,
+    PrintScheduleModel,
 )
 
 
@@ -33,25 +34,29 @@ class PrintPlanningSchedulerPlugin(
         self._print_schedule = PrintSchedule()
 
     def on_settings_initialized(self):
-        self._load_calendar()
+        self._load_schedule()
 
     @property
-    def calendar_cache_path(self):
-        return Path(self.get_plugin_data_folder()) / "schedule.ics"
+    def schedule_save_path(self):
+        return Path(self.get_plugin_data_folder()) / "schedule.json"
 
-    def _load_calendar(self):
-        if self.calendar_cache_path.exists():
-            return InfiniteCalendar.from_ical(self.calendar_cache_path)
+    def _load_schedule(self):
+        if self.schedule_save_path.exists():
+            self._print_schedule = PrintSchedule.load(self.schedule_save_path)
         else:
-            return InfiniteCalendar([])
+            self._print_schedule = PrintSchedule()
+
+    def _save_schedule(self):
+        self._print_schedule.save(self.schedule_save_path)
 
     def set_calendar_from_file(self, path: Path):
         if path.exists():
-            os.remove(self.calendar_cache_path)
-            os.rename(path, self.calendar_cache_path)
+            os.remove(self.schedule_save_path)
+            os.rename(path, self.schedule_save_path)
             self._print_schedule.calendar = InfiniteCalendar.from_ical(
-                self.calendar_cache_path
+                self.schedule_save_path
             )
+            self._save_schedule()
 
     ##~~ SettingsPlugin mixin
 
@@ -103,8 +108,7 @@ class PrintPlanningSchedulerPlugin(
         file_content = data["content"]
         try:
             self._print_schedule.calendar = InfiniteCalendar.from_ical_str(file_content)
-            with open(self.calendar_cache_path, "w+") as f:
-                f.write(file_content)
+            self._save_schedule()
         except Exception as e:
             self._logger.exception(e)
             return (
@@ -161,6 +165,7 @@ class PrintPlanningSchedulerPlugin(
         self._print_schedule.calendar.add_event(
             target_interval.start, target_interval.end, event_name, rrule
         )
+        self._save_schedule()
         return flask.jsonify({"message": "Event added successfully"}), 200
 
     @octoprint.plugin.BlueprintPlugin.route("/excluded_interval", methods=["GET"])
@@ -179,14 +184,15 @@ class PrintPlanningSchedulerPlugin(
             flask.request.args.get("start"), flask.request.args.get("end")
         )
         self._print_schedule.add_exclusion_interval(target_interval)
+        self._save_schedule()
         return flask.jsonify({"message": "Interval excluded successfully"}), 200
 
     @octoprint.plugin.BlueprintPlugin.route("/print_job", methods=["GET"])
     def get_print_jobs(self):
-        return flask.jsonify(self._print_schedule.jobs), 200
+        return flask.jsonify({"jobs": self._print_schedule.jobs}), 200
 
     @octoprint.plugin.BlueprintPlugin.route("/print_job", methods=["POST"])
-    def submit_print_job(self):
+    def add_print_job(self):
         data = flask.request.json
         name = data.get("name")
         duration = data.get("duration")
@@ -194,7 +200,15 @@ class PrintPlanningSchedulerPlugin(
         if not name or not duration:
             flask.abort(400, description="Both name and duration are required")
 
-        new_id = self._print_schedule.add_job(PrintJob(name, duration, description))
+        parsed_time = datetime.strptime(duration, "%H:%M")
+        new_id = self._print_schedule.add_job(
+            PrintJob(
+                name,
+                timedelta(hours=parsed_time.hour, minutes=parsed_time.minute),
+                description,
+            )
+        )
+        self._save_schedule()
         return (
             flask.jsonify(
                 {"_id": new_id, "message": "Print job submitted successfully"}
@@ -207,8 +221,9 @@ class PrintPlanningSchedulerPlugin(
         job_id = flask.request.args.get("job_id")
         if not job_id:
             flask.abort(400, description="job_id is required")
-        # Assume self.scheduler.remove_print_job exists
+
         removed_count = self._print_schedule.remove_job(job_id)
+        self._save_schedule()
         return (
             flask.jsonify(
                 {"message": "Print job remove success", "count": removed_count}
@@ -216,9 +231,7 @@ class PrintPlanningSchedulerPlugin(
             200,
         )
 
-    @octoprint.plugin.BlueprintPlugin.route(
-        "/get_suggested_print_jobs", methods=["GET"]
-    )
+    @octoprint.plugin.BlueprintPlugin.route("/suggested_print_jobs", methods=["GET"])
     def get_suggested_print_jobs(self):
         target_date = self._date_or_default(flask.request.args.get("date"))
         suggested_jobs = self._print_schedule.get_scheduled_job_options(target_date)

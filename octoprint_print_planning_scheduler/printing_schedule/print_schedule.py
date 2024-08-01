@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from pathlib import Path
 from datetime import timedelta, datetime
 
-from dataclasses_json import dataclass_json
+from dataclasses_json import DataClassJsonMixin
 
 from octoprint_print_planning_scheduler.printing_schedule.date_interval import (
     DateInterval,
@@ -18,9 +19,8 @@ from octoprint_print_planning_scheduler.printing_schedule.infinite_calendar impo
 from octoprint_print_planning_scheduler.printing_schedule.print_job import PrintJob
 
 
-@dataclass_json
 @dataclass
-class PrintScheduleModel:
+class PrintScheduleModel(DataClassJsonMixin):
     calendar: InfiniteCalendar = field(default_factory=InfiniteCalendar)
     excluded_intervals: DateIntervalSet = field(default_factory=DateIntervalSet)
     jobs: list[PrintJob] = field(default_factory=list)
@@ -40,9 +40,9 @@ class PrintScheduleModel:
         return before_count - len(self.jobs)
 
 
-class PrintSchedule:
-    def __init__(self):
-        self._model = PrintScheduleModel()
+@dataclass
+class PrintSchedule(DataClassJsonMixin):
+    _model: PrintScheduleModel = field(default_factory=PrintScheduleModel)
 
     @property
     def calendar(self):
@@ -64,11 +64,19 @@ class PrintSchedule:
     def jobs(self, value):
         self._model.jobs = value
 
+    def save(self, file: Path):
+        with open(file, "w+") as f:
+            f.write(self.to_json())
+
+    @classmethod
+    def load(cls, file: Path):
+        with open(file, "r") as f:
+            return cls.from_json(f.read())
+
     @classmethod
     def from_ical(cls, ical_file: Path):
-        obj = cls()
-        obj.calendar = InfiniteCalendar.from_ical(ical_file)
-        return obj
+        model = PrintScheduleModel(calendar=InfiniteCalendar.from_ical(ical_file))
+        return cls(model)
 
     def reset(self):
         self._model.excluded_intervals = DateIntervalSet()

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 from pathlib import Path
@@ -73,7 +73,8 @@ class PrintPlanningSchedulerPlugin(
         return {
             "js": [
                 "js/print_planning_scheduler.js",
-                "js/fullcalendar/dist/index.global.js",
+                "js/libs/fullcalendar/dist/index.global.js",
+                "js/libs/html-duration-picker.min.js",
             ],
             "css": ["css/print_planning_scheduler.css"],
             "less": ["less/print_planning_scheduler.less"],
@@ -121,8 +122,10 @@ class PrintPlanningSchedulerPlugin(
 
     def _date_or_default(self, date_str: str | None, default=None):
         if date_str is None:
-            return default if default is not None else datetime.now()
-        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+            return default if default is not None else datetime.now(timezone.utc)
+        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%fZ").replace(
+            tzinfo=timezone.utc
+        )
 
     def _parse_date_interval(self, start_date: str | None, end_date: str | None):
         if not start_date or not end_date:
@@ -189,7 +192,10 @@ class PrintPlanningSchedulerPlugin(
 
     @octoprint.plugin.BlueprintPlugin.route("/print_job", methods=["GET"])
     def get_print_jobs(self):
-        return flask.jsonify({"jobs": self._print_schedule.jobs}), 200
+        return (
+            flask.jsonify({"jobs": [j.to_dict() for j in self._print_schedule.jobs]}),
+            200,
+        )
 
     @octoprint.plugin.BlueprintPlugin.route("/print_job", methods=["POST"])
     def add_print_job(self):
@@ -235,4 +241,4 @@ class PrintPlanningSchedulerPlugin(
     def get_suggested_print_jobs(self):
         target_date = self._date_or_default(flask.request.args.get("date"))
         suggested_jobs = self._print_schedule.get_scheduled_job_options(target_date)
-        return flask.jsonify(suggested_jobs), 200
+        return flask.jsonify([job.to_dict() for job in suggested_jobs]), 200

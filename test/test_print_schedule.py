@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dateutil.rrule import rrule, HOURLY
 
 from octoprint_print_planning_scheduler.printing_schedule.date_interval import (
@@ -184,19 +184,27 @@ def test_schedule_serialization():
             InfiniteCalendar(
                 [
                     SingleEvent(
-                        datetime(2024, 7, 1, 10, 0), datetime(2024, 7, 1, 12, 0)
+                        datetime(2024, 7, 1, 10, 0, tzinfo=timezone.utc),
+                        datetime(2024, 7, 1, 12, 0, tzinfo=timezone.utc),
                     ),
                     RecurringEvent(
-                        datetime(2024, 7, 2, 10, 0),
-                        datetime(2024, 7, 2, 12, 0),
+                        datetime(2024, 7, 2, 10, 0, tzinfo=timezone.utc),
+                        datetime(2024, 7, 2, 12, 0, tzinfo=timezone.utc),
                         rrule(
-                            freq=HOURLY, dtstart=datetime(2024, 7, 2, 10, 0), interval=4
+                            freq=HOURLY,
+                            dtstart=datetime(2024, 7, 2, 10, 0, tzinfo=timezone.utc),
+                            interval=4,
                         ),
                     ),
                 ]
             ),
             DateIntervalSet(
-                [DateInterval(datetime(2024, 7, 2, 11, 0), datetime(2024, 7, 2, 13, 0))]
+                [
+                    DateInterval(
+                        datetime(2024, 7, 2, 11, 0, tzinfo=timezone.utc),
+                        datetime(2024, 7, 2, 13, 0, tzinfo=timezone.utc),
+                    )
+                ]
             ),
             [PrintJob("job", timedelta(hours=1), description="Description", _id=3)],
         )

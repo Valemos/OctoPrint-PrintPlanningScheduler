@@ -11,7 +11,8 @@
             "module": "octoprint",
             "args": [
                 "serve"
-            ]
+            ],
+            "justMyCode": false
         }
     ]
 }

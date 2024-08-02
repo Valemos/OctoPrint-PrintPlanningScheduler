@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from dataclasses_json import DataClassJsonMixin, config
 from icalendar import Calendar
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone, tzinfo
 from dateutil.rrule import rrule, rruleset, rrulestr
 
 from octoprint_print_planning_scheduler.printing_schedule.date_interval import (
@@ -19,11 +19,27 @@ from octoprint_print_planning_scheduler.printing_schedule.date_interval_set impo
 class RecurringEvent(DataClassJsonMixin):
     start: datetime
     end: datetime
-    recurrence: rrule | rruleset = field(
+    recurrence: rrule = field(
         metadata=config(encoder=lambda r: str(r), decoder=lambda r: rrulestr(r))
     )
+    name: str = ""
     stop_date: datetime | None = None
-    name: str | None = None
+
+    def __post_init__(self):
+        self.recurrence = self.recurrence.replace(
+            dtstart=self.start, tzinfo=self.start.tzinfo
+        )
+
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, RecurringEvent):
+            return False
+        return (
+            self.start == value.start
+            and self.end == value.end
+            and str(self.recurrence) == str(value.recurrence)
+            and self.stop_date == value.stop_date
+            and self.name == value.name
+        )
 
     def generate_intervals(self, period: DateInterval) -> DateIntervalSet:
         intervals = DateIntervalSet()
@@ -49,9 +65,31 @@ class SingleEvent(DataClassJsonMixin):
         return DateIntervalSet()
 
 
+def _events_to_dict(event_list: list[SingleEvent | RecurringEvent]):
+    return [
+        {"type": event.__class__.__name__, "obj": event.to_dict()}
+        for event in event_list
+    ]
+
+
+def _events_from_dict(data_list: list[dict]):
+    def _event_from_dict(data):
+        if data["type"] == SingleEvent.__name__:
+            return SingleEvent.from_dict(data["obj"])
+        elif data["type"] == RecurringEvent.__name__:
+            return RecurringEvent.from_dict(data["obj"])
+        else:
+            raise ValueError("Unknown type")
+
+    return list(map(_event_from_dict, data_list))
+
+
 @dataclass
 class InfiniteCalendar(DataClassJsonMixin):
-    events: list[SingleEvent | RecurringEvent] = field(default_factory=list)
+    events: list[SingleEvent | RecurringEvent] = field(
+        default_factory=list,
+        metadata=config(encoder=_events_to_dict, decoder=_events_from_dict),
+    )
 
     @classmethod
     def from_ical(cls, file_path: Path) -> "InfiniteCalendar":
@@ -72,27 +110,32 @@ class InfiniteCalendar(DataClassJsonMixin):
                     recurrence_str = recurrence.to_ical().decode("utf-8")
                     events.append(
                         RecurringEvent(
-                            start.dt,
-                            end.dt,
+                            start.dt.replace(tzinfo=timezone.utc),
+                            end.dt.replace(tzinfo=timezone.utc),
                             rrulestr(f"DTSTART:{start_str}\nRRULE:{recurrence_str}"),
                         )
                     )
                 else:
-                    events.append(SingleEvent(start.dt, end.dt))
+                    events.append(
+                        SingleEvent(
+                            start.dt.replace(tzinfo=timezone.utc),
+                            end.dt.replace(tzinfo=timezone.utc),
+                        )
+                    )
         return InfiniteCalendar(sorted(events, key=lambda e: e.start))
 
     def add_event(
         self,
         start: datetime,
         end: datetime,
-        name: str | None = None,
-        recurrence: rrule | rruleset | None = None,
+        name: str = "",
+        recurrence: rrule | None = None,
         stop_date: datetime | None = None,
     ):
         if recurrence is None:
             self.events.append(SingleEvent(start, end, name))
         else:
-            self.events.append(RecurringEvent(start, end, recurrence, stop_date, name))
+            self.events.append(RecurringEvent(start, end, recurrence, name, stop_date))
 
     def generate_intervals_for_period(self, interval: DateInterval) -> DateIntervalSet:
         total_intervals_set = DateIntervalSet()
@@ -104,7 +147,7 @@ class InfiniteCalendar(DataClassJsonMixin):
     def get_intervals_as_events_for_period(
         self, interval: DateInterval
     ) -> list[SingleEvent]:
-        total_events = []
+        total_events: list[SingleEvent] = []
         for event in self.events:
             intervals = event.generate_intervals(interval)
             total_events.extend(

@@ -19,7 +19,7 @@ class print_planning_schedulerViewModel
     {
         this.initCalendar();
         this.initCalendarControlForms();
-        this.initStartJobs();
+        this.updateAllPrintJobs();
     }
 
     initCalendar()
@@ -45,12 +45,12 @@ class print_planning_schedulerViewModel
                 eventSources: [
                     {
                         events: this.getCalendarDisabledIntervals.bind(this),
-                        color: self.COLOR_DISABLED_PRINTING,
+                        color: this.COLOR_DISABLED_PRINTING,
                         textColor: 'black'
                     },
                     {
                         events: this.getCalendarExcludedIntervals.bind(this),
-                        color: self.COLOR_ENABLED_PRINTING,
+                        color: this.COLOR_ENABLED_PRINTING,
                         textColor: 'white'
                     }
                 ],
@@ -64,7 +64,7 @@ class print_planning_schedulerViewModel
         });
     }
 
-    initStartJobs()
+    updateAllPrintJobs()
     {
         var self = this;
         this.jobs = new Array();
@@ -181,7 +181,7 @@ class print_planning_schedulerViewModel
                 data: JSON.stringify({ content: fileContent }),
                 success: (response) => {
                     $('#message').text(response.message).css('color', 'green');
-                    self.calendar.render();
+                    self.calendar.refetchEvents();
                 },
                 error: (xhr, status, error) => {
                     var errorMessage = xhr.responseJSON ? xhr.responseJSON.message : 'An error occurred';
@@ -248,32 +248,48 @@ class print_planning_schedulerViewModel
             contentType: 'application/json',
             data: JSON.stringify(printJob),
             success: function (response) {
-                console.log('Interval excluded successfully:', response);
+                console.log('Print job submit success:', response);
                 printJob.id = response._id;
                 self.jobs.push(printJob);
                 self.renderJobList();
             },
             error: function (xhr, status, error) {
-                console.error('Error excluding interval:', error);
+                console.error('Error submitting job:', error);
             }
         });
+    }
+
+    _formatDuration(seconds) {
+        const hrs = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+
+        const paddedHrs = String(hrs).padStart(2, '0');
+        const paddedMins = String(mins).padStart(2, '0');
+
+        return `${paddedHrs}:${paddedMins}`;
     }
 
     renderJobList() {
         var jobList = $('#suggested_print_job_list');
         jobList.innerHTML = '';
-        this.jobs.forEach(job => {
-            finish_time = new Date(Date.now() * 1e-3 + job.duration).toLocaleString();
-            const jobItem = $(`
-                <div class="job-item" data-id="${job._id}">
-                    <h3 class="job-name">${job.name}</h3>
-                    <p class="job-duration">Duration: ${job.duration}</p>
-                    <p class="job-finish-time">${finish_time}</p>
-                </div>
-            `);
-            jobItem.click(() => openJobDialog(job._id));
-            jobList.append(jobItem);
-        });
+        if (this.jobs.length == 0)
+        {
+            jobList.append("<p>All print jobs are done</p>");
+        } else {
+            this.jobs.forEach(job => {
+                var durationStr = this._formatDuration(job.duration);
+                var finishTime = new Date(Date.now() + job.duration).toLocaleString();
+                const jobItem = $(`
+                    <div class="job-item" data-id="${job._id}">
+                        <h3 class="job-name">${job.name}</h3>
+                        <p class="job-duration">Duration: ${durationStr}</p>
+                        <p class="job-finish-time">Finishes at: ${finishTime}</p>
+                    </div>
+                `);
+                jobItem.click(() => this.openJobDialog(job._id));
+                jobList.append(jobItem);
+            });
+        }
     }
 
     openJobDialog(id) {

@@ -8,4 +8,4 @@ dist
 .DS_Store
 *.zip
 
-!octoprint_print_planning_scheduler/static/js/fullcalendar/dist
+!octoprint_print_planning_scheduler/static/js/**

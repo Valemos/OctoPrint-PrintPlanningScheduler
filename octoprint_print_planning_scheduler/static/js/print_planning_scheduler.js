@@ -9,7 +9,8 @@ class print_planning_schedulerViewModel
     constructor(parameters)
     {
         this.calendar = null;
-        this.jobs = new Array();
+        this.suggestedJobs = new Array();
+        this.plannedJobs = new Array();
         this.COLOR_DISABLED_PRINTING = "#c92662";
         this.COLOR_ENABLED_PRINTING = "#03fc73";
         this.PLUGIN_BASE_URL = "/plugin/print_planning_scheduler";
@@ -66,21 +67,52 @@ class print_planning_schedulerViewModel
 
     updateAllPrintJobs()
     {
+        this.updatePlannedJobs();
+        this.updateSuggestedJobs();
+    }
+    
+    updateSuggestedJobs()
+    {
         var self = this;
-        this.jobs = new Array();
+        this.suggestedJobs = new Array();
         $.ajax({
-            url: this.PLUGIN_BASE_URL + '/print_job',
+            url: this.PLUGIN_BASE_URL + '/suggested_print_jobs',
             type: 'GET',
             success: function (response) {
                 response.jobs.forEach((job) => {
-                    self.jobs.push({
+                    self.suggestedJobs.push({
                         id: job._id,
                         name: job.name,
                         description: job.description,
                         duration: job.duration,
                     })
                 });
-                self.renderJobList();
+                self.renderSuggestedJobList();
+            },
+            error: function (xhr, status, error) {
+                console.error('Error fetching disabled events:', error);
+            }
+        });
+        
+    }
+
+    updatePlannedJobs()
+    {
+        var self = this;
+        this.plannedJobs = new Array();
+        $.ajax({
+            url: this.PLUGIN_BASE_URL + '/print_job',
+            type: 'GET',
+            success: function (response) {
+                response.jobs.forEach((job) => {
+                    self.plannedJobs.push({
+                        id: job._id,
+                        name: job.name,
+                        description: job.description,
+                        duration: job.duration,
+                    })
+                });
+                self.renderPlannedJobList();
             },
             error: function (xhr, status, error) {
                 console.error('Error fetching disabled events:', error);
@@ -234,10 +266,10 @@ class print_planning_schedulerViewModel
         }
     }
 
-    onAddPrintJobSubmit(submit_event)
+    onAddPrintJobSubmit(submitEvent)
     {
-        submit_event.preventDefault();
-        const formData = new FormData($(submit_event.target).get(0));
+        submitEvent.preventDefault();
+        const formData = new FormData($(submitEvent.target).get(0));
         var printJob = Object.fromEntries(formData);
         console.log('Print Job:', printJob);
         
@@ -250,8 +282,8 @@ class print_planning_schedulerViewModel
             success: function (response) {
                 console.log('Print job submit success:', response);
                 printJob.id = response._id;
-                self.jobs.push(printJob);
-                self.renderJobList();
+                self.suggestedJobs.push(printJob);
+                self.renderJobLists();
             },
             error: function (xhr, status, error) {
                 console.error('Error submitting job:', error);
@@ -269,48 +301,80 @@ class print_planning_schedulerViewModel
         return `${paddedHrs}:${paddedMins}`;
     }
 
-    renderJobList() {
-        var jobList = $('#suggested_print_job_list');
-        jobList.innerHTML = '';
-        if (this.jobs.length == 0)
+    _createPrintJobElement(job)
+    {
+        const durationStr = this._formatDuration(job.duration);
+        const finishTime = new Date(Date.now() + job.duration).toLocaleString();
+        return $(`
+            <div class="job-item" data-id="${job._id}">
+                <h3 class="job-name">${job.name}</h3>
+                <p class="job-duration">Duration: ${durationStr}</p>
+                <p class="job-finish-time">Finishes at: ${finishTime}</p>
+            </div>
+        `)
+    }
+
+    renderJobLists() {
+        this.renderSuggestedJobList();
+        this.renderPlannedJobList();
+    }
+
+    renderSuggestedJobList()
+    {
+        var suggestedJobList = $('#suggested_print_job_list');
+        suggestedJobList.innerHTML = '';
+        if (this.suggestedJobs.length == 0)
         {
-            jobList.append("<p>All print jobs are done</p>");
+            suggestedJobList.append(
+                this.plannedJobs.length > 0 ?
+                    "<p>Cannot suggest any print job</p>" :
+                    "<p>No planned jobs</p>");
         } else {
-            this.jobs.forEach(job => {
-                var durationStr = this._formatDuration(job.duration);
-                var finishTime = new Date(Date.now() + job.duration).toLocaleString();
-                const jobItem = $(`
-                    <div class="job-item" data-id="${job._id}">
-                        <h3 class="job-name">${job.name}</h3>
-                        <p class="job-duration">Duration: ${durationStr}</p>
-                        <p class="job-finish-time">Finishes at: ${finishTime}</p>
-                    </div>
-                `);
+            this.suggestedJobs.forEach(job => {
+                const jobItem = this._createPrintJobElement(job);
                 jobItem.click(() => this.openJobDialog(job._id));
-                jobList.append(jobItem);
+                suggestedJobList.append(jobItem);
+            });
+        }
+    }
+
+    renderPlannedJobList() {
+        var plannedJobList = $('#planned_print_job_list');
+        plannedJobList.innerHTML = '';
+        if (this.plannedJobs.length == 0)
+        {
+            plannedJobList.append("<p>No planned jobs</p>");
+        } else {
+            this.plannedJobs.forEach(job => {
+                const jobItem = this._createPrintJobElement(job);
+                jobItem.click(() => this.openJobDialog(job._id));
+                plannedJobList.append(jobItem);
             });
         }
     }
 
     openJobDialog(id) {
-        const job = jobs.find(job => job._id === id);
+        const job = this.plannedJobs.find(job => job._id === id);
         if (job) {
             // Create the dialog content dynamically
             const dialogContent = `
-                <div id="start_job_dialog" data-id="${job.id}">
+                <form id="start_job_dialog" data-id="${job.id}">
                     <h3>${job.name}</h3>
                     <p>Duration: ${job.duration}</p>
                     <p>${job.description}</p>
-                    <button onclick="submitStartJob()">Submit</button>
-                    <button onclick="closeJobDialog()">Cancel</button>
-                </div>
+                    <input type="submit" value="Submit">
+                    <input type="reset" value="Cancel">
+                </form>
             `;
 
             $('#start_job_dialog').remove();
             $('#start_job_overlay').remove();
 
             $('body').append(dialogContent);
-            $('body').append('<div id="start_job_overlay" onclick="closeJobDialog()"></div>');
+            $('body').append('<div id="start_job_overlay"></div>');
+            $('#start_job_dialog').on('submit', (e) => this.submitStartJob(e))
+            $('#start_job_dialog').on('reset', (e) => this.closeJobDialog())
+            $('#start_job_overlay').on('click', (e) => this.closeJobDialog())
 
             $('#start_job_overlay').show();
             $('#start_job_dialog').show();
@@ -324,14 +388,15 @@ class print_planning_schedulerViewModel
         $('#start_job_dialog').remove();
     }
     
-    submitStartJob() {
-        const id = $('#start_job_dialog').data('id');
+    submitStartJob(submitEvent) {
+        const id = $(submitEvent.target).data('id');
         const job = jobs.find(job => job.id === id);
+        var self = this;
         if (job) {
             startPrintJob(job).then(() => {
                 jobs = jobs.filter(job => job.id !== id);
-                renderJobList();
-                closeJobDialog();
+                self.updateAllPrintJobs();
+                self.closeJobDialog();
             }).catch(error => {
                 console.error('Failed to start print job:', error);
             });

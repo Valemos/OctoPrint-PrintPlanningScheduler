@@ -241,4 +241,4 @@ class PrintPlanningSchedulerPlugin(
     def get_suggested_print_jobs(self):
         target_date = self._date_or_default(flask.request.args.get("date"))
         suggested_jobs = self._print_schedule.get_scheduled_job_options(target_date)
-        return flask.jsonify([job.to_dict() for job in suggested_jobs]), 200
+        return flask.jsonify({"jobs": [job.to_dict() for job in suggested_jobs]}), 200

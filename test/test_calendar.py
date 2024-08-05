@@ -63,11 +63,9 @@ def test_single_event_outside_period():
 
 
 def test_recurring_event_daily():
-    # Define the start date and time of the recurring event
     start_date = datetime(2024, 7, 1, 10, 0)
     end_date = datetime(2024, 7, 1, 11, 0)
 
-    # Create an RRULE string for daily recurrence
     rrule_str = (
         f"DTSTART:{start_date.strftime(ICAL_DATETIME_FORMAT)}\n"
         f"RRULE:FREQ=DAILY;INTERVAL=1"

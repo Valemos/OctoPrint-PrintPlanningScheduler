@@ -66,7 +66,7 @@ def test_schedule_jobs_before_interval(print_schedule: PrintSchedule):
     )
 
     scheduled_jobs = print_schedule.get_scheduled_job_options(
-        datetime(2024, 7, 1, 6, 0)
+        datetime(2024, 7, 1, 6, 0, tzinfo=timezone.utc)
     )
     assert len(scheduled_jobs) == 2
     assert scheduled_jobs[0] == job2
@@ -84,7 +84,7 @@ def test_schedule_jobs_interval_end(print_schedule: PrintSchedule):
     )
 
     scheduled_jobs = print_schedule.get_scheduled_job_options(
-        datetime(2024, 7, 1, 12, 0)
+        datetime(2024, 7, 1, 12, 0, tzinfo=timezone.utc)
     )
     assert len(scheduled_jobs) == 2
     assert scheduled_jobs[0] == job2
@@ -102,7 +102,7 @@ def test_schedule_jobs_with_lacking_time(print_schedule: PrintSchedule):
     )
 
     scheduled_jobs = print_schedule.get_scheduled_job_options(
-        datetime(2024, 7, 1, 8, 0)
+        datetime(2024, 7, 1, 8, 0, tzinfo=timezone.utc)
     )
     assert len(scheduled_jobs) == 1
     assert scheduled_jobs[0] == job1
@@ -119,7 +119,7 @@ def test_no_schedule_jobs_inside_disabled_interval(print_schedule: PrintSchedule
     )
 
     scheduled_jobs = print_schedule.get_scheduled_job_options(
-        datetime(2024, 7, 1, 10, 0)
+        datetime(2024, 7, 1, 10, 0, tzinfo=timezone.utc)
     )
     assert len(scheduled_jobs) == 0
 
@@ -140,7 +140,7 @@ def test_schedule_jobs_with_exclued_disabled_interval(
     )
 
     scheduled_jobs = print_schedule.get_scheduled_job_options(
-        datetime(2024, 7, 1, 9, 0)
+        datetime(2024, 7, 1, 9, 0, tzinfo=timezone.utc)
     )
     assert len(scheduled_jobs) == 2
     assert scheduled_jobs[0] == job2
@@ -166,14 +166,14 @@ def test_schedule_jobs_between_recurrint_event(print_schedule: PrintSchedule):
     )
 
     scheduled_jobs = print_schedule.get_scheduled_job_options(
-        datetime(2024, 7, 1, 16, 0)
+        datetime(2024, 7, 1, 16, 0, tzinfo=timezone.utc)
     )
     assert len(scheduled_jobs) == 2
     assert scheduled_jobs[0] == job2
     assert scheduled_jobs[1] == job1
 
     scheduled_jobs = print_schedule.get_scheduled_job_options(
-        datetime(2024, 7, 1, 14, 0)
+        datetime(2024, 7, 1, 14, 0, tzinfo=timezone.utc)
     )
     assert len(scheduled_jobs) == 0
 
@@ -184,15 +184,14 @@ def test_schedule_serialization():
             InfiniteCalendar(
                 [
                     SingleEvent(
-                        datetime(2024, 7, 1, 10, 0, tzinfo=timezone.utc),
-                        datetime(2024, 7, 1, 12, 0, tzinfo=timezone.utc),
+                        datetime(2024, 7, 1, 10, 0),
+                        datetime(2024, 7, 1, 12, 0),
                     ),
                     RecurringEvent(
                         datetime(2024, 7, 2, 10, 0, tzinfo=timezone.utc),
                         datetime(2024, 7, 2, 12, 0, tzinfo=timezone.utc),
                         rrule(
                             freq=HOURLY,
-                            dtstart=datetime(2024, 7, 2, 10, 0, tzinfo=timezone.utc),
                             interval=4,
                         ),
                     ),
@@ -213,4 +212,6 @@ def test_schedule_serialization():
     schedule_str = schedule.to_json()
     restored_schedule = PrintSchedule.from_json(schedule_str)
 
+    assert restored_schedule.calendar.events[0] == schedule.calendar.events[0]
+    assert restored_schedule.calendar.events[1] == schedule.calendar.events[1]
     assert restored_schedule == schedule

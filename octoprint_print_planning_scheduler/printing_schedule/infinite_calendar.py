@@ -19,16 +19,16 @@ from octoprint_print_planning_scheduler.printing_schedule.date_interval_set impo
 class RecurringEvent(DataClassJsonMixin):
     start: datetime
     end: datetime
-    recurrence: rrule = field(
+    recurrence: rrule | rruleset = field(
         metadata=config(encoder=lambda r: str(r), decoder=lambda r: rrulestr(r))
     )
     name: str = ""
     stop_date: datetime | None = None
 
     def __post_init__(self):
-        self.recurrence = self.recurrence.replace(
-            dtstart=self.start, tzinfo=self.start.tzinfo
-        )
+        self.start = self.start.astimezone(timezone.utc)
+        self.end = self.end.astimezone(timezone.utc)
+        self.recurrence = self.recurrence.replace(dtstart=self.start)
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, RecurringEvent):
@@ -56,6 +56,10 @@ class SingleEvent(DataClassJsonMixin):
     start: datetime
     end: datetime
     name: str = ""
+
+    def __post_init__(self):
+        self.start = self.start.astimezone(timezone.utc)
+        self.end = self.end.astimezone(timezone.utc)
 
     def generate_intervals(self, period: DateInterval) -> DateIntervalSet:
         if self.start < period.end and self.end > period.start:

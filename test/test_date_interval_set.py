@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 from octoprint_print_planning_scheduler.printing_schedule.date_interval import (
     DateInterval,
@@ -121,7 +121,9 @@ def test_find_closest_future_interval():
     interval_set = DateIntervalSet()
     interval_set.add(DateInterval(datetime(2023, 1, 1), datetime(2023, 1, 10)))
     interval_set.add(DateInterval(datetime(2023, 1, 15), datetime(2023, 1, 20)))
-    closest_interval = interval_set.find_closest_future_interval(datetime(2023, 1, 12))
+    closest_interval = interval_set.find_closest_future_interval(
+        datetime(2023, 1, 12, tzinfo=timezone.utc)
+    )
     assert closest_interval == DateInterval(
         datetime(2023, 1, 15), datetime(2023, 1, 20)
     )
